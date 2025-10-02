@@ -69,9 +69,67 @@ export async function createPerk(req, res, next) {
 }
 // TODO
 // Update an existing perk by ID and validate only the fields that are being updated 
-export async function updatePerk(req, res, next) {
   
+  
+  // Update an existing perk by ID and validate only the fields that are being updated 
+export async function updatePerk(req, res, next) {  
+  try {
+    const { id } = req.params;
+    
+    // Find the existing perk
+    const existingPerk = await Perk.findById(id);
+    if (!existingPerk) {
+      return res.status(404).json({ message: 'Perk not found' });
+    }
+
+    // Create a validation schema that makes all fields optional
+    // since we're doing a partial update
+    const updatePerkSchema = Joi.object({
+      title: Joi.string().min(2),
+      description: Joi.string().allow(''),
+      category: Joi.string().valid('food','tech','travel','fitness','other'),
+      discountPercent: Joi.number().min(0).max(100),
+      merchant: Joi.string().allow('')
+    });
+
+    // Validate only the fields that are provided in the request body
+    const { value, error } = updatePerkSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    // Update only the fields that are provided in the request
+    // This ensures we don't overwrite fields that aren't being updated
+    const updateData = {};
+    
+    if (value.title !== undefined) updateData.title = value.title;
+    if (value.description !== undefined) updateData.description = value.description;
+    if (value.category !== undefined) updateData.category = value.category;
+    if (value.discountPercent !== undefined) updateData.discountPercent = value.discountPercent;
+    if (value.merchant !== undefined) updateData.merchant = value.merchant;
+
+    // If no valid fields to update, return early
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    // Perform the update
+    const updatedPerk = await Perk.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true } // Return updated doc and run schema validators
+    );
+
+    res.json({ perk: updatedPerk });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    }
+    next(err);
+  }
 }
+  
+
 
 
 // Delete a perk by ID
